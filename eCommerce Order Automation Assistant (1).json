@@ -1,0 +1,409 @@
+{
+  "name": "eCommerce Order Automation Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "storeName",
+              "value": "ShopHouse",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "storeEmail",
+              "value": "hafiz.mubashar895@gmail.com",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "currency",
+              "value": "USD",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "shippingCost",
+              "value": 10,
+              "type": "number"
+            },
+            {
+              "id": "id-5",
+              "name": "taxRate",
+              "value": 0.08,
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "35f72fae-c967-4f52-8593-1a0fb4e664a6",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1552,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "=You are a professional eCommerce virtual assistant for {{ $json.storeName }}. Your role is to help customers with:\n\n1. **Product Inquiries**: Answer questions about products, availability, pricing, and specifications\n2. **Order Taking**: Help customers place orders, calculate totals including tax and shipping\n3. **Payment Confirmation**: Guide customers through payment process and verify payments\n4. **Shipping Updates**: Provide tracking information and delivery status\n5. **After-Sale Support**: Handle returns, exchanges, complaints, and general support\n\nWhen the customer books an order, ask for the below details one by one:\n- Customer Name\n- Phone Number\n- Email Address\n- Delivery Address for shipping\nalso product name which customer has selected.\nStore these details in the attached Google Sheet and send the booking order details via email.\n\nGuidelines:\n- Always be polite, professional, and customer-friendly\n- Use the customer's name when available\n- Provide clear, concise information\n- Calculate prices accurately using the calculator tool\n- Confirm order details before finalizing\n- Use appropriate tools to check inventory, create orders, verify payments, and track shipments\n- If you don't have information, politely let the customer know and offer to help in other ways\n- End conversations professionally and invite customers to reach out anytime\n- **When an order is successfully created, ALWAYS provide the customer with their Order ID immediately and explain they can use it to track their shipment**\n- **After providing the order ID, inform customers they can ask you to track their shipment anytime by providing this order ID**\n- **When a customer asks to track a shipment, use the track_shipment tool with their order ID to get real-time status updates**\n\nStore Information:\n- Store Name: {{ $json.storeName }}\n- Currency: {{ $json.currency }}\n- Standard Shipping Cost: ${{ $json.shippingCost }}\n- Tax Rate: {{ $json.taxRate * 100 }}%\n\nAlways maintain conversation context and provide a seamless customer experience."
+        }
+      },
+      "id": "ab5ecbb7-a1d7-44ae-bd87-cfe154161101",
+      "name": "eCommerce Assistant Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -1056,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.sessionId }}",
+        "contextWindowLength": 10
+      },
+      "id": "698fddfe-0333-4f56-9330-dc3cf0a2e981",
+      "name": "Conversation Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -1264,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1424,
+        528
+      ],
+      "id": "318a01c8-47fe-4742-8c84-dc4be52f0366",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "1XkSgtVYfSjlt2Lc",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Calculate total price including product cost, tax, and shipping. Input format: {\"productPrice\": number, \"quantity\": number, \"includeTax\": boolean, \"includeShipping\": boolean}",
+        "jsCode": "const input = JSON.parse(query);\nconst config = $('Workflow Configuration').first().json;\n\nconst subtotal = input.productPrice * input.quantity;\nconst tax = input.includeTax ? subtotal * config.taxRate : 0;\nconst shipping = input.includeShipping ? config.shippingCost : 0;\nconst total = subtotal + tax + shipping;\n\nreturn JSON.stringify({\n  subtotal: subtotal.toFixed(2),\n  tax: tax.toFixed(2),\n  shipping: shipping.toFixed(2),\n  total: total.toFixed(2),\n  currency: config.currency\n});"
+      },
+      "id": "3b7c7717-edb4-41e9-a0ca-78b50f35327d",
+      "name": "calculate_price",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -1136,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Browse and search product catalog. Input format: {\"action\": \"list\" or \"search\", \"query\": \"search term (optional)\", \"category\": \"category name (optional)\"}",
+        "jsCode": "const input = JSON.parse(query);\n\n// Sample product catalog - replace with actual database/API call\nconst products = [\n  { id: 1, name: 'Wireless Headphones', category: 'Electronics', price: 79.99, stock: 25, description: 'Premium noise-canceling wireless headphones' },\n  { id: 2, name: 'Smart Watch', category: 'Electronics', price: 199.99, stock: 15, description: 'Fitness tracking smartwatch with heart rate monitor' },\n  { id: 3, name: 'Laptop Backpack', category: 'Accessories', price: 49.99, stock: 40, description: 'Water-resistant laptop backpack with USB charging port' },\n  { id: 4, name: 'Bluetooth Speaker', category: 'Electronics', price: 59.99, stock: 30, description: 'Portable waterproof Bluetooth speaker' },\n  { id: 5, name: 'Phone Case', category: 'Accessories', price: 19.99, stock: 100, description: 'Protective phone case with card holder' }\n];\n\nlet result = products;\n\nif (input.category) {\n  result = result.filter(p => p.category.toLowerCase() === input.category.toLowerCase());\n}\n\nif (input.action === 'search' && input.query) {\n  const searchTerm = input.query.toLowerCase();\n  result = result.filter(p => \n    p.name.toLowerCase().includes(searchTerm) || \n    p.description.toLowerCase().includes(searchTerm)\n  );\n}\n\nreturn JSON.stringify({\n  count: result.length,\n  products: result\n});"
+      },
+      "id": "92f6c4f8-7609-4a9d-8eb0-65c27563faec",
+      "name": "get_product_catalog",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -944,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Create, retrieve, or update orders. Input format: {\"action\": \"create\" or \"get\" or \"update\", \"orderId\": \"order ID (for get/update)\", \"orderData\": {\"customerId\": string, \"items\": [{\"productId\": number, \"quantity\": number, \"price\": number}], \"total\": number, \"status\": string}}",
+        "jsCode": "const input = JSON.parse(query);\nconst config = $('Workflow Configuration').first().json;\n\n// In production, replace with actual database operations\nif (input.action === 'create') {\n  const orderId = 'ORD-' + Date.now();\n  const order = {\n    orderId: orderId,\n    customerId: input.orderData.customerId,\n    items: input.orderData.items,\n    subtotal: input.orderData.subtotal,\n    tax: input.orderData.tax,\n    shipping: input.orderData.shipping,\n    total: input.orderData.total,\n    currency: config.currency,\n    status: 'pending',\n    createdAt: new Date().toISOString(),\n    storeEmail: config.storeEmail\n  };\n  \n  return JSON.stringify({\n    success: true,\n    orderId: orderId,\n    message: 'Order created successfully',\n    order: order\n  });\n}\n\nif (input.action === 'get') {\n  // Mock order retrieval\n  return JSON.stringify({\n    success: true,\n    orderId: input.orderId,\n    order: {\n      orderId: input.orderId,\n      status: 'processing',\n      estimatedDelivery: '3-5 business days'\n    }\n  });\n}\n\nif (input.action === 'update') {\n  return JSON.stringify({\n    success: true,\n    orderId: input.orderId,\n    message: 'Order updated successfully',\n    newStatus: input.orderData.status\n  });\n}\n\nreturn JSON.stringify({ success: false, message: 'Invalid action' });"
+      },
+      "id": "0b809ab0-b69e-43ae-ae18-0b973a8f7ddf",
+      "name": "manage_order",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -784,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Track shipment status using the order ID provided by the manage_order tool. Input format: {\"orderId\": \"order ID from manage_order\"}. Returns tracking information including order ID, tracking number, current status, and estimated delivery.",
+        "jsCode": "const input = JSON.parse(query);\n\n// Mock shipment tracking - replace with actual carrier API integration\nconst trackingStatuses = [\n  'Order confirmed',\n  'Processing',\n  'Shipped',\n  'In transit',\n  'Out for delivery',\n  'Delivered'\n];\n\nconst randomStatus = trackingStatuses[Math.floor(Math.random() * 4) + 1];\n\nconst tracking = {\n  orderId: input.orderId,\n  trackingNumber: 'TRK' + Math.random().toString(36).substr(2, 9).toUpperCase(),\n  status: randomStatus,\n  lastUpdate: new Date().toISOString(),\n  estimatedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],\n  carrier: 'Standard Shipping',\n  note: 'Please save your order ID (' + input.orderId + ') for future tracking and reference'\n};\n\nreturn JSON.stringify(tracking);"
+      },
+      "id": "2a3aa122-8051-4275-88b2-c96c25ace8b5",
+      "name": "track_shipment",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -656,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1NDZapDnS0osma8cYXlvtIxLsQaGMhYXkBeK0OVAjxNU",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1NDZapDnS0osma8cYXlvtIxLsQaGMhYXkBeK0OVAjxNU/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1NDZapDnS0osma8cYXlvtIxLsQaGMhYXkBeK0OVAjxNU/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name ": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Name_', ``, 'string') }}",
+            "Phone Number": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Phone_Number', ``, 'string') }}",
+            "Email Address": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Email_Address', ``, 'string') }}",
+            "Deievery Address": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Deievery_Address', ``, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Name ",
+              "displayName": "Name ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone Number",
+              "displayName": "Phone Number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email Address",
+              "displayName": "Email Address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Deievery Address",
+              "displayName": "Deievery Address",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "b400c6f7-1db3-4b14-b506-d86204b2f0eb",
+      "name": "Store Customer Order Data",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        -512,
+        528
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "vlcxKI40qyiz9lK8",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('To', `Customer email address`, 'string') }}",
+        "subject": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Subject', ``, 'string') }}",
+        "message": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Message', `HTML formatted order confirmation with all details`, 'string') }}",
+        "options": {}
+      },
+      "id": "6d1ddfb4-5ef9-4045-a516-93c9f47950c4",
+      "name": "Send Order Confirmation Email",
+      "type": "n8n-nodes-base.gmailTool",
+      "typeVersion": 2.1,
+      "position": [
+        -368,
+        528
+      ],
+      "webhookId": "09e6253b-e50d-49fd-bfea-325493950037",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "kEKmfcZ65GKWwonB",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "public": true,
+        "mode": "webhook",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1776,
+        304
+      ],
+      "id": "bc532d49-bbb6-403e-be02-ced33bcf25dc",
+      "name": "When chat message received",
+      "webhookId": "e26cf9b6-f88b-4635-8020-1bc5a2fc3a2a"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "eCommerce Assistant Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conversation Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "eCommerce Assistant Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "eCommerce Assistant Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "calculate_price": {
+      "ai_tool": [
+        [
+          {
+            "node": "eCommerce Assistant Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_product_catalog": {
+      "ai_tool": [
+        [
+          {
+            "node": "eCommerce Assistant Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "manage_order": {
+      "ai_tool": [
+        [
+          {
+            "node": "eCommerce Assistant Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "track_shipment": {
+      "ai_tool": [
+        [
+          {
+            "node": "eCommerce Assistant Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Customer Order Data": {
+      "ai_tool": [
+        [
+          {
+            "node": "eCommerce Assistant Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Order Confirmation Email": {
+      "ai_tool": [
+        [
+          {
+            "node": "eCommerce Assistant Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "4c551144-161d-4cfa-8d57-b569140859a8",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6454ae9a8d05ee643c08b5a91a0e038f33b8ae0347f779daa7239984884d37da"
+  },
+  "id": "qkUsjjRejYhiyARj",
+  "tags": []
+}
